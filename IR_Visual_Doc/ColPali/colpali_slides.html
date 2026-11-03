@@ -1,0 +1,1543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ColPali: Efficient Document Retrieval with Vision Language Models</title>
+  <style>
+    :root {
+      --bg: #f4f6f7;
+      --paper: #ffffff;
+      --ink: #17212b;
+      --muted: #60707f;
+      --line: #d7e0e6;
+      --soft: #edf3f5;
+      --teal: #0f8b8d;
+      --teal-dark: #075f63;
+      --teal-soft: #e4f5f4;
+      --amber: #be741e;
+      --amber-soft: #fff2df;
+      --coral: #c8503e;
+      --coral-soft: #ffede9;
+      --blue: #315f95;
+      --blue-soft: #e8f0fb;
+      --green: #237a4b;
+      --green-soft: #e9f7ef;
+      --shadow: 0 18px 42px rgba(26, 35, 45, 0.1);
+      --radius: 8px;
+      --slide-max: 1240px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(180deg, #eaf0f3 0, var(--bg) 420px);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    a {
+      color: var(--teal-dark);
+      text-underline-offset: 3px;
+    }
+
+    .deck-shell {
+      width: min(var(--slide-max), calc(100% - 28px));
+      margin: 0 auto;
+      padding: 22px 0 64px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 18px;
+      min-height: 58px;
+      margin: 0 -14px 18px;
+      padding: 10px 14px;
+      color: #334250;
+      background: rgba(244, 246, 247, 0.86);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(215, 224, 230, 0.8);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    .mark {
+      width: 32px;
+      height: 32px;
+      border: 2px solid var(--teal);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: var(--paper);
+      box-shadow: 0 7px 18px rgba(15, 139, 141, 0.16);
+    }
+
+    .mark svg,
+    .nav-button svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .progress-wrap {
+      height: 8px;
+      border-radius: 999px;
+      background: #dfe7ec;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, var(--teal), var(--amber), var(--coral));
+      border-radius: inherit;
+      transition: width 0.2s ease;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .counter {
+      min-width: 70px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      font-weight: 700;
+    }
+
+    .nav-button {
+      width: 38px;
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: inline-grid;
+      place-items: center;
+      color: var(--ink);
+      background: var(--paper);
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(26, 35, 45, 0.08);
+    }
+
+    .nav-button:hover {
+      border-color: var(--teal);
+      color: var(--teal-dark);
+    }
+
+    .nav-button:disabled {
+      opacity: 0.45;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .slides {
+      display: grid;
+      gap: 28px;
+    }
+
+    .slide {
+      position: relative;
+      min-height: min(760px, calc(100vh - 112px));
+      padding: clamp(28px, 4vw, 54px);
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      scroll-margin-top: 88px;
+    }
+
+    .slide::after {
+      content: attr(data-slide);
+      position: absolute;
+      right: 24px;
+      bottom: 18px;
+      color: #9aabb7;
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .slide-title {
+      margin: 0;
+      max-width: 930px;
+      font-size: clamp(2.05rem, 4vw, 4rem);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .slide-title.tight {
+      max-width: 1040px;
+      font-size: clamp(1.85rem, 3.2vw, 3.25rem);
+    }
+
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 14px;
+      color: var(--teal-dark);
+      font-size: 0.86rem;
+      font-weight: 850;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .kicker::before {
+      content: "";
+      width: 28px;
+      height: 3px;
+      border-radius: 999px;
+      background: var(--teal);
+    }
+
+    .subtitle {
+      max-width: 900px;
+      margin: 18px 0 0;
+      color: #344250;
+      font-size: clamp(1.04rem, 1.5vw, 1.28rem);
+    }
+
+    .grid {
+      display: grid;
+      gap: 24px;
+      margin-top: 30px;
+    }
+
+    .grid.two {
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      align-items: center;
+    }
+
+    .grid.two-even {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: stretch;
+    }
+
+    .grid.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid.four {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .panel,
+    .stat,
+    .mini-card,
+    .formula {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+    }
+
+    .panel {
+      padding: 20px;
+    }
+
+    .panel.soft-teal {
+      border-color: #b9dedc;
+      background: var(--teal-soft);
+    }
+
+    .panel.soft-amber {
+      border-color: #ead2ad;
+      background: var(--amber-soft);
+    }
+
+    .panel.soft-coral {
+      border-color: #efc3bc;
+      background: var(--coral-soft);
+    }
+
+    .panel.soft-blue {
+      border-color: #c8d7ec;
+      background: var(--blue-soft);
+    }
+
+    .panel h3,
+    .mini-card h3 {
+      margin: 0 0 10px;
+      font-size: 1.03rem;
+      line-height: 1.25;
+    }
+
+    .panel p,
+    .mini-card p,
+    .caption,
+    .small {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .bullets {
+      margin: 16px 0 0;
+      padding-left: 1.1rem;
+    }
+
+    .bullets li {
+      margin: 9px 0;
+    }
+
+    .bullets strong {
+      color: var(--ink);
+    }
+
+    .hero-media {
+      width: 100%;
+      min-height: 330px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #f7f9fb;
+    }
+
+    .paper-figure,
+    .generated-figure {
+      width: 100%;
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .paper-figure {
+      padding: 4px;
+    }
+
+    .figure-wrap {
+      margin-top: 24px;
+    }
+
+    .caption {
+      margin-top: 9px;
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+
+    .source {
+      color: #70808d;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .stat {
+      padding: 18px;
+      min-height: 138px;
+    }
+
+    .stat .number {
+      display: block;
+      color: var(--teal-dark);
+      font-size: clamp(2rem, 3vw, 3.25rem);
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .stat .label {
+      display: block;
+      margin-top: 10px;
+      color: #394755;
+      font-weight: 800;
+      line-height: 1.3;
+    }
+
+    .stat .note {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .formula {
+      padding: 20px 22px;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      color: #101821;
+      background: #f7fafb;
+      font-size: clamp(1.04rem, 2vw, 1.58rem);
+      line-height: 1.55;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .formula .accent {
+      color: var(--teal-dark);
+      font-weight: 800;
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .compare h3 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .dot {
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      display: inline-block;
+      background: var(--teal);
+    }
+
+    .dot.amber {
+      background: var(--amber);
+    }
+
+    .dot.coral {
+      background: var(--coral);
+    }
+
+    .dot.blue {
+      background: var(--blue);
+    }
+
+    .pipeline,
+    .matrix-viz,
+    .loss-viz,
+    .rag-viz,
+    .benchmark-viz {
+      width: 100%;
+      min-height: 260px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+    }
+
+    svg text {
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      fill: var(--ink);
+      letter-spacing: 0;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: #334250;
+      background: #fff;
+      font-weight: 750;
+      font-size: 0.9rem;
+    }
+
+    .tag.teal {
+      color: var(--teal-dark);
+      border-color: #b9dedc;
+      background: var(--teal-soft);
+    }
+
+    .tag.amber {
+      color: #7d430d;
+      border-color: #ead2ad;
+      background: var(--amber-soft);
+    }
+
+    .tag.coral {
+      color: #943226;
+      border-color: #efc3bc;
+      background: var(--coral-soft);
+    }
+
+    .table-lite {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+      overflow: hidden;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .table-lite th,
+    .table-lite td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .table-lite th {
+      color: #24313d;
+      background: #edf3f5;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .table-lite tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .score {
+      font-weight: 900;
+      color: var(--teal-dark);
+    }
+
+    .metric-line {
+      display: grid;
+      grid-template-columns: minmax(96px, auto) 1fr minmax(52px, auto);
+      align-items: center;
+      gap: 12px;
+      margin: 12px 0;
+    }
+
+    .bar {
+      height: 14px;
+      border-radius: 999px;
+      background: #dbe5eb;
+      overflow: hidden;
+    }
+
+    .bar span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--teal), #58b2a8);
+    }
+
+    .metric-line:nth-child(2) .bar span {
+      background: linear-gradient(90deg, var(--amber), #e0a34b);
+    }
+
+    .metric-line:nth-child(3) .bar span {
+      background: linear-gradient(90deg, var(--blue), #6f9aca);
+    }
+
+    .metric-line b {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .quote {
+      margin-top: 28px;
+      padding-left: 20px;
+      border-left: 4px solid var(--teal);
+      color: #344250;
+      font-size: clamp(1.08rem, 1.8vw, 1.42rem);
+      line-height: 1.45;
+    }
+
+    .footnote {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .title-slide {
+      display: grid;
+      grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+      align-items: center;
+      gap: 34px;
+      min-height: min(780px, calc(100vh - 112px));
+      background:
+        linear-gradient(135deg, rgba(228, 245, 244, 0.74), rgba(255, 255, 255, 0.9) 42%, rgba(255, 242, 223, 0.74));
+    }
+
+    .title-slide .slide-title {
+      font-size: clamp(2.4rem, 5.4vw, 5.25rem);
+    }
+
+    .section-label {
+      width: fit-content;
+      margin: 0 0 22px;
+      padding: 7px 10px;
+      border: 1px solid #b9dedc;
+      border-radius: 8px;
+      color: var(--teal-dark);
+      background: var(--teal-soft);
+      font-size: 0.78rem;
+      font-weight: 850;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .agenda {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .agenda div {
+      min-height: 96px;
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    .agenda b {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .formula-stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .slide:target {
+      outline: 3px solid rgba(15, 139, 141, 0.22);
+      outline-offset: 4px;
+    }
+
+    @media (max-width: 980px) {
+      .title-slide,
+      .grid.two,
+      .grid.two-even,
+      .grid.three,
+      .grid.four,
+      .compare,
+      .agenda {
+        grid-template-columns: 1fr;
+      }
+
+      .slide {
+        min-height: auto;
+      }
+
+      .topbar {
+        grid-template-columns: 1fr auto;
+      }
+
+      .progress-wrap {
+        grid-column: 1 / -1;
+        order: 3;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .deck-shell {
+        width: min(100% - 18px, var(--slide-max));
+        padding-top: 10px;
+      }
+
+      .slide {
+        padding: 24px 18px 44px;
+      }
+
+      .brand span {
+        display: none;
+      }
+
+      .counter {
+        min-width: 56px;
+      }
+
+      .nav-button {
+        width: 34px;
+        height: 34px;
+      }
+
+      .table-lite {
+        font-size: 0.85rem;
+      }
+
+      .table-lite th,
+      .table-lite td {
+        padding: 8px;
+      }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .topbar {
+        display: none;
+      }
+
+      .deck-shell {
+        width: 100%;
+        padding: 0;
+      }
+
+      .slides {
+        gap: 0;
+      }
+
+      .slide {
+        min-height: 100vh;
+        box-shadow: none;
+        border-radius: 0;
+        page-break-after: always;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="deck-shell">
+    <nav class="topbar" aria-label="Slide controls">
+      <div class="brand">
+        <span class="mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M4 16V8l8-4 8 4v8l-8 4-8-4Z"></path>
+            <path d="M8 10h8M8 14h8"></path>
+          </svg>
+        </span>
+        <span>ColPali slides</span>
+      </div>
+      <div class="progress-wrap" aria-hidden="true">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <div class="nav">
+        <button class="nav-button" id="prevSlide" type="button" aria-label="Previous slide" title="Previous slide">
+          <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>
+        </button>
+        <span class="counter" id="counter">1 / 18</span>
+        <button class="nav-button" id="nextSlide" type="button" aria-label="Next slide" title="Next slide">
+          <svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"></path></svg>
+        </button>
+      </div>
+    </nav>
+
+    <main class="slides">
+      <section class="slide title-slide" id="slide-1" data-slide="01">
+        <div>
+          <p class="section-label">ICLR 2025 paper walkthrough</p>
+          <h1 class="slide-title">ColPali: Efficient Document Retrieval with Vision Language Models</h1>
+          <p class="subtitle">A detailed slide deck explaining how ColPali replaces fragile PDF parsing pipelines with direct page-image embeddings and ColBERT-style late interaction.</p>
+          <div class="agenda">
+            <div><b>Problem</b><span class="small">Documents are visual objects, not just text containers.</span></div>
+            <div><b>Method</b><span class="small">PaliGemma emits one vector per page patch.</span></div>
+            <div><b>Scoring</b><span class="small">Query tokens match their best document patches.</span></div>
+            <div><b>Results</b><span class="small">Higher nDCG@5 with faster indexing.</span></div>
+          </div>
+        </div>
+        <div>
+          <img class="hero-media generated-figure" src="assets/generated-vision-space.png" alt="Generated illustration of a page image flowing through a neural model into many vectors.">
+          <p class="caption">Generated teaching figure: visual pages become multi-vector retrieval objects.</p>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-2" data-slide="02">
+        <p class="kicker">Motivation</p>
+        <h2 class="slide-title tight">The paper starts from a very practical failure mode: PDF ingestion is the bottleneck.</h2>
+        <div class="grid two">
+          <div class="panel">
+            <h3>Traditional document RAG has many brittle steps</h3>
+            <ul class="bullets">
+              <li><strong>Parse or OCR</strong> every page before retrieval can begin.</li>
+              <li><strong>Detect layout</strong> to separate titles, paragraphs, tables, figures, captions, headers, and footers.</li>
+              <li><strong>Chunk text</strong> into passages that may or may not preserve the page semantics.</li>
+              <li><strong>Caption visual elements</strong> if tables, charts, and diagrams carry important meaning.</li>
+            </ul>
+          </div>
+          <img class="generated-figure" src="assets/generated-pipeline-comparison.png" alt="Generated comparison showing a complex document processing pipeline and a simpler direct visual embedding path.">
+        </div>
+        <p class="quote">ColPali's central bet: for retrieval, embed the rendered page itself and let a VLM preserve text, layout, tables, charts, and visual cues together.</p>
+      </section>
+
+      <section class="slide" id="slide-3" data-slide="03">
+        <p class="kicker">Benchmark</p>
+        <h2 class="slide-title tight">ViDoRe evaluates page-level retrieval where visual understanding matters.</h2>
+        <div class="grid two">
+          <div>
+            <svg class="benchmark-viz" viewBox="0 0 720 360" role="img" aria-label="ViDoRe benchmark tasks grouped into academic and practical tasks.">
+              <rect x="24" y="24" width="672" height="312" rx="8" fill="#fff" stroke="#d7e0e6"></rect>
+              <text x="52" y="68" font-size="24" font-weight="800">ViDoRe</text>
+              <text x="52" y="98" font-size="15" fill="#60707f">Page-level retrieval across visual domains, document types, and languages</text>
+              <rect x="52" y="128" width="284" height="164" rx="8" fill="#e4f5f4" stroke="#b9dedc"></rect>
+              <rect x="384" y="128" width="284" height="164" rx="8" fill="#fff2df" stroke="#ead2ad"></rect>
+              <text x="76" y="164" font-size="18" font-weight="800">Academic tasks</text>
+              <text x="408" y="164" font-size="18" font-weight="800">Practical tasks</text>
+              <text x="76" y="196" font-size="15">DocVQA</text>
+              <text x="76" y="222" font-size="15">InfoVQA</text>
+              <text x="76" y="248" font-size="15">TAT-DQA</text>
+              <text x="190" y="196" font-size="15">arXiVQA</text>
+              <text x="190" y="222" font-size="15">TabFQuAD</text>
+              <text x="408" y="196" font-size="15">Energy</text>
+              <text x="408" y="222" font-size="15">Government</text>
+              <text x="408" y="248" font-size="15">Healthcare</text>
+              <text x="548" y="196" font-size="15">AI</text>
+              <text x="548" y="222" font-size="15">Shift Project</text>
+              <path d="M336 210h48" stroke="#8795a1" stroke-width="2"></path>
+              <circle cx="360" cy="210" r="5" fill="#0f8b8d"></circle>
+            </svg>
+          </div>
+          <div class="panel soft-blue">
+            <h3>What the benchmark changes</h3>
+            <ul class="bullets">
+              <li><strong>Atomic unit:</strong> the retrieved item is a page, not a pre-chunked text passage.</li>
+              <li><strong>Modalities:</strong> text, figures, infographics, tables, layouts, and scanned pages.</li>
+              <li><strong>Languages:</strong> English and French tasks, while ColPali's training set is English-only.</li>
+              <li><strong>Main metric:</strong> nDCG@5, with Recall@K and MRR also reported.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="tag-row" aria-label="ViDoRe task coverage">
+          <span class="tag teal">Figures</span>
+          <span class="tag teal">Tables</span>
+          <span class="tag teal">Infographics</span>
+          <span class="tag amber">Financial reports</span>
+          <span class="tag amber">Administrative documents</span>
+          <span class="tag coral">French documents</span>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-4" data-slide="04">
+        <p class="kicker">Paper figure</p>
+        <h2 class="slide-title tight">ColPali simplifies the retrieval stack without giving up fine-grained matching.</h2>
+        <div class="figure-wrap">
+          <img class="paper-figure" src="assets/paper-fig1-colpali-architecture.png" alt="Figure 1 from the ColPali paper comparing standard retrieval and ColPali.">
+          <p class="caption"><span class="source">From the paper, Figure 1.</span> Standard retrieval builds text chunks before embedding. ColPali embeds the rendered page directly and then performs late interaction between query vectors and page patch vectors.</p>
+        </div>
+        <div class="grid three">
+          <div class="stat">
+            <span class="number">0.81</span>
+            <span class="label">Average nDCG@5 for ColPali on ViDoRe</span>
+            <span class="note">The paper reports 81.3 when shown as a percentage.</span>
+          </div>
+          <div class="stat">
+            <span class="number">0.39s</span>
+            <span class="label">Per-page indexing latency</span>
+            <span class="note">Direct page-image embedding, no OCR/layout/captioning stack.</span>
+          </div>
+          <div class="stat">
+            <span class="number">30ms</span>
+            <span class="label">Query encoding latency</span>
+            <span class="note">Late interaction adds small overhead for modest corpora.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-5" data-slide="05">
+        <p class="kicker">Concept</p>
+        <h2 class="slide-title tight">The key idea: retrieve in vision space, then match query words to visual page regions.</h2>
+        <div class="grid two">
+          <div class="panel">
+            <h3>What gets indexed?</h3>
+            <ul class="bullets">
+              <li>The document page is rendered as an image.</li>
+              <li>The VLM divides it into image patches.</li>
+              <li>Each patch becomes a vector in the same retrieval space as query-token vectors.</li>
+              <li>The page is stored as a bag of vectors rather than one pooled embedding.</li>
+            </ul>
+          </div>
+          <div class="panel soft-teal">
+            <h3>Why this is different from CLIP-style retrieval</h3>
+            <p>A single image vector must compress the whole page into one point. ColPali keeps many vectors, so a query can independently latch onto a table cell, chart axis, title, figure, or paragraph.</p>
+          </div>
+        </div>
+        <svg class="pipeline" viewBox="0 0 940 270" role="img" aria-label="Direct page-image to multi-vector index pipeline.">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0l10 5-10 5Z" fill="#60707f"></path>
+            </marker>
+          </defs>
+          <rect x="34" y="42" width="144" height="186" rx="8" fill="#fff" stroke="#b7c6d0"></rect>
+          <rect x="54" y="62" width="104" height="46" rx="4" fill="#e4f5f4"></rect>
+          <rect x="54" y="124" width="104" height="12" rx="3" fill="#cfd9df"></rect>
+          <rect x="54" y="146" width="104" height="12" rx="3" fill="#cfd9df"></rect>
+          <rect x="54" y="170" width="52" height="36" rx="4" fill="#fff2df" stroke="#ead2ad"></rect>
+          <rect x="116" y="170" width="42" height="36" rx="4" fill="#e8f0fb" stroke="#c8d7ec"></rect>
+          <text x="106" y="246" text-anchor="middle" font-size="16" font-weight="800">Page image</text>
+          <path d="M198 136h90" stroke="#60707f" stroke-width="3" marker-end="url(#arrow)"></path>
+          <rect x="310" y="56" width="170" height="158" rx="8" fill="#e4f5f4" stroke="#98cecb"></rect>
+          <text x="395" y="98" text-anchor="middle" font-size="18" font-weight="800">Vision</text>
+          <text x="395" y="126" text-anchor="middle" font-size="18" font-weight="800">language model</text>
+          <text x="395" y="166" text-anchor="middle" font-size="15" fill="#60707f">PaliGemma backbone</text>
+          <path d="M500 136h88" stroke="#60707f" stroke-width="3" marker-end="url(#arrow)"></path>
+          <g transform="translate(620 48)">
+            <text x="112" y="198" text-anchor="middle" font-size="16" font-weight="800">Page multi-vector index</text>
+            <g fill="#0f8b8d">
+              <rect x="0" y="0" width="46" height="18" rx="9"></rect>
+              <rect x="72" y="8" width="46" height="18" rx="9"></rect>
+              <rect x="146" y="0" width="46" height="18" rx="9"></rect>
+              <rect x="38" y="46" width="46" height="18" rx="9"></rect>
+              <rect x="112" y="52" width="46" height="18" rx="9"></rect>
+              <rect x="186" y="46" width="46" height="18" rx="9"></rect>
+            </g>
+            <g fill="#be741e">
+              <rect x="0" y="92" width="46" height="18" rx="9"></rect>
+              <rect x="72" y="100" width="46" height="18" rx="9"></rect>
+              <rect x="146" y="92" width="46" height="18" rx="9"></rect>
+            </g>
+            <g fill="#c8503e">
+              <rect x="38" y="138" width="46" height="18" rx="9"></rect>
+              <rect x="112" y="146" width="46" height="18" rx="9"></rect>
+              <rect x="186" y="138" width="46" height="18" rx="9"></rect>
+            </g>
+          </g>
+        </svg>
+      </section>
+
+      <section class="slide" id="slide-6" data-slide="06">
+        <p class="kicker">Architecture</p>
+        <h2 class="slide-title tight">ColPali is PaliGemma adapted to output ColBERT-style vectors.</h2>
+        <div class="grid two-even">
+          <div class="panel soft-teal">
+            <h3>Document side</h3>
+            <ul class="bullets">
+              <li>Input is a page image.</li>
+              <li>SigLIP-like vision encoder produces patch tokens.</li>
+              <li>Gemma language backbone contextualizes those tokens.</li>
+              <li>A projection maps output token embeddings to <strong>D = 128</strong>.</li>
+            </ul>
+          </div>
+          <div class="panel soft-amber">
+            <h3>Query side</h3>
+            <ul class="bullets">
+              <li>Input is normal query text.</li>
+              <li>The same language model space produces token vectors.</li>
+              <li>The authors append <strong>5 unused tokens</strong> as soft query augmentation buffers.</li>
+              <li>Scoring waits until query time, hence late interaction.</li>
+            </ul>
+          </div>
+        </div>
+        <table class="table-lite" style="margin-top: 24px;">
+          <thead>
+            <tr>
+              <th>Component</th>
+              <th>Role in ColPali</th>
+              <th>Why it matters</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>SigLIP vision encoder</td>
+              <td>Turns page patches into visual tokens</td>
+              <td>Preserves page-level visual evidence.</td>
+            </tr>
+            <tr>
+              <td>Gemma-2B language model</td>
+              <td>Contextualizes image tokens in a language-aware space</td>
+              <td>Helps OCR-like and multilingual understanding.</td>
+            </tr>
+            <tr>
+              <td>128-d projection</td>
+              <td>Reduces each token vector size</td>
+              <td>Keeps multi-vector storage less expensive.</td>
+            </tr>
+            <tr>
+              <td>MaxSim scoring</td>
+              <td>Finds best page patch for each query token</td>
+              <td>Retains fine-grained evidence without cross-encoding every page.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="slide" id="slide-7" data-slide="07">
+        <p class="kicker">Late interaction</p>
+        <h2 class="slide-title tight">The scoring rule is simple: each query vector gets credit from its best page patch.</h2>
+        <div class="grid two">
+          <div class="formula-stack">
+            <div class="formula">
+              E<sub>q</sub> in R<sup>Nq x D</sup>, E<sub>d</sub> in R<sup>Nd x D</sup>, D = 128
+            </div>
+            <div class="formula">
+              <span class="accent">LI(q,d)</span> = sum<sub>i in query</sub> max<sub>j in page</sub> &lt; E<sub>q,i</sub>, E<sub>d,j</sub> &gt;
+            </div>
+          </div>
+          <svg class="matrix-viz" viewBox="0 0 620 360" role="img" aria-label="Late interaction MaxSim matrix diagram.">
+            <rect x="24" y="24" width="572" height="312" rx="8" fill="#fff" stroke="#d7e0e6"></rect>
+            <text x="54" y="66" font-size="20" font-weight="800">MaxSim matrix</text>
+            <text x="54" y="92" font-size="14" fill="#60707f">Rows are query tokens. Columns are page patches.</text>
+            <g transform="translate(124 122)">
+              <text x="-72" y="28" font-size="13" fill="#60707f">token 1</text>
+              <text x="-72" y="72" font-size="13" fill="#60707f">token 2</text>
+              <text x="-72" y="116" font-size="13" fill="#60707f">token 3</text>
+              <text x="-72" y="160" font-size="13" fill="#60707f">token 4</text>
+              <g fill="#edf3f5" stroke="#c9d5dd">
+                <rect x="0" y="0" width="42" height="34"></rect><rect x="46" y="0" width="42" height="34"></rect><rect x="92" y="0" width="42" height="34"></rect><rect x="138" y="0" width="42" height="34"></rect><rect x="184" y="0" width="42" height="34"></rect><rect x="230" y="0" width="42" height="34"></rect>
+                <rect x="0" y="44" width="42" height="34"></rect><rect x="46" y="44" width="42" height="34"></rect><rect x="92" y="44" width="42" height="34"></rect><rect x="138" y="44" width="42" height="34"></rect><rect x="184" y="44" width="42" height="34"></rect><rect x="230" y="44" width="42" height="34"></rect>
+                <rect x="0" y="88" width="42" height="34"></rect><rect x="46" y="88" width="42" height="34"></rect><rect x="92" y="88" width="42" height="34"></rect><rect x="138" y="88" width="42" height="34"></rect><rect x="184" y="88" width="42" height="34"></rect><rect x="230" y="88" width="42" height="34"></rect>
+                <rect x="0" y="132" width="42" height="34"></rect><rect x="46" y="132" width="42" height="34"></rect><rect x="92" y="132" width="42" height="34"></rect><rect x="138" y="132" width="42" height="34"></rect><rect x="184" y="132" width="42" height="34"></rect><rect x="230" y="132" width="42" height="34"></rect>
+              </g>
+              <g fill="#0f8b8d">
+                <rect x="184" y="0" width="42" height="34"></rect>
+                <rect x="46" y="44" width="42" height="34"></rect>
+                <rect x="230" y="88" width="42" height="34"></rect>
+                <rect x="138" y="132" width="42" height="34"></rect>
+              </g>
+              <text x="205" y="23" text-anchor="middle" font-size="13" fill="#fff" font-weight="800">max</text>
+              <text x="67" y="67" text-anchor="middle" font-size="13" fill="#fff" font-weight="800">max</text>
+              <text x="251" y="111" text-anchor="middle" font-size="13" fill="#fff" font-weight="800">max</text>
+              <text x="159" y="155" text-anchor="middle" font-size="13" fill="#fff" font-weight="800">max</text>
+              <path d="M292 17h70" stroke="#60707f" stroke-width="2" marker-end="url(#arrow)"></path>
+              <path d="M292 61h70" stroke="#60707f" stroke-width="2" marker-end="url(#arrow)"></path>
+              <path d="M292 105h70" stroke="#60707f" stroke-width="2" marker-end="url(#arrow)"></path>
+              <path d="M292 149h70" stroke="#60707f" stroke-width="2" marker-end="url(#arrow)"></path>
+              <text x="390" y="92" font-size="16" font-weight="800">sum row maxima</text>
+              <text x="390" y="120" font-size="14" fill="#60707f">one relevance score</text>
+            </g>
+          </svg>
+        </div>
+        <p class="quote">This is the ColBERT compromise: richer than a bi-encoder dot product, much cheaper than running a cross-encoder over every query-page pair.</p>
+      </section>
+
+      <section class="slide" id="slide-8" data-slide="08">
+        <p class="kicker">Training</p>
+        <h2 class="slide-title tight">Training turns PaliGemma into a retrieval model using positive query-page pairs and hard in-batch negatives.</h2>
+        <div class="grid two">
+          <svg class="loss-viz" viewBox="0 0 620 360" role="img" aria-label="Batch contrastive loss diagram.">
+            <rect x="24" y="24" width="572" height="312" rx="8" fill="#fff" stroke="#d7e0e6"></rect>
+            <text x="54" y="66" font-size="20" font-weight="800">Batch score table</text>
+            <text x="54" y="92" font-size="14" fill="#60707f">Diagonal cells are positives. Off-diagonal cells are negatives.</text>
+            <g transform="translate(122 124)">
+              <g fill="#edf3f5" stroke="#c9d5dd">
+                <rect x="0" y="0" width="58" height="42"></rect><rect x="62" y="0" width="58" height="42"></rect><rect x="124" y="0" width="58" height="42"></rect><rect x="186" y="0" width="58" height="42"></rect>
+                <rect x="0" y="48" width="58" height="42"></rect><rect x="62" y="48" width="58" height="42"></rect><rect x="124" y="48" width="58" height="42"></rect><rect x="186" y="48" width="58" height="42"></rect>
+                <rect x="0" y="96" width="58" height="42"></rect><rect x="62" y="96" width="58" height="42"></rect><rect x="124" y="96" width="58" height="42"></rect><rect x="186" y="96" width="58" height="42"></rect>
+                <rect x="0" y="144" width="58" height="42"></rect><rect x="62" y="144" width="58" height="42"></rect><rect x="124" y="144" width="58" height="42"></rect><rect x="186" y="144" width="58" height="42"></rect>
+              </g>
+              <g fill="#0f8b8d">
+                <rect x="0" y="0" width="58" height="42"></rect>
+                <rect x="62" y="48" width="58" height="42"></rect>
+                <rect x="124" y="96" width="58" height="42"></rect>
+                <rect x="186" y="144" width="58" height="42"></rect>
+              </g>
+              <g fill="#c8503e">
+                <rect x="186" y="0" width="58" height="42" opacity="0.88"></rect>
+                <rect x="0" y="48" width="58" height="42" opacity="0.88"></rect>
+                <rect x="62" y="96" width="58" height="42" opacity="0.88"></rect>
+                <rect x="124" y="144" width="58" height="42" opacity="0.88"></rect>
+              </g>
+              <text x="-50" y="27" font-size="13" fill="#60707f">q1</text>
+              <text x="-50" y="75" font-size="13" fill="#60707f">q2</text>
+              <text x="-50" y="123" font-size="13" fill="#60707f">q3</text>
+              <text x="-50" y="171" font-size="13" fill="#60707f">q4</text>
+              <text x="18" y="-16" font-size="13" fill="#60707f">d1</text>
+              <text x="80" y="-16" font-size="13" fill="#60707f">d2</text>
+              <text x="142" y="-16" font-size="13" fill="#60707f">d3</text>
+              <text x="204" y="-16" font-size="13" fill="#60707f">d4</text>
+            </g>
+            <rect x="420" y="142" width="124" height="52" rx="8" fill="#e4f5f4" stroke="#b9dedc"></rect>
+            <text x="482" y="164" text-anchor="middle" font-size="13" font-weight="800">positive</text>
+            <text x="482" y="184" text-anchor="middle" font-size="13" fill="#60707f">s+</text>
+            <rect x="420" y="212" width="124" height="52" rx="8" fill="#ffede9" stroke="#efc3bc"></rect>
+            <text x="482" y="234" text-anchor="middle" font-size="13" font-weight="800">hardest negative</text>
+            <text x="482" y="254" text-anchor="middle" font-size="13" fill="#60707f">max s-</text>
+          </svg>
+          <div class="panel">
+            <h3>Training recipe from the paper</h3>
+            <ul class="bullets">
+              <li><strong>118,695 query-page pairs</strong>: 63% academic datasets, 37% synthetic PDF pages.</li>
+              <li><strong>English-only training</strong>, then evaluation includes French tasks.</li>
+              <li><strong>LoRA adapters</strong> on language model transformer layers plus the projection layer.</li>
+              <li><strong>One epoch</strong>, bfloat16, learning rate 5e-5, total batch size 32.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="formula" style="margin-top: 22px;">
+          L = average over batch of log(1 + exp(s<sup>-</sup><sub>k</sub> - s<sup>+</sup><sub>k</sub>))
+        </div>
+      </section>
+
+      <section class="slide" id="slide-9" data-slide="09">
+        <p class="kicker">Results</p>
+        <h2 class="slide-title tight">On ViDoRe, the jump comes from combining a VLM backbone with multi-vector late interaction.</h2>
+        <div class="grid two">
+          <div class="panel">
+            <h3>Average nDCG@5 on ViDoRe</h3>
+            <div class="metric-line">
+              <span>ColPali</span>
+              <div class="bar"><span style="width: 100%;"></span></div>
+              <b>81.3</b>
+            </div>
+            <div class="metric-line">
+              <span>Best text pipeline</span>
+              <div class="bar"><span style="width: 82.4%;"></span></div>
+              <b>67.0</b>
+            </div>
+            <div class="metric-line">
+              <span>SigLIP vanilla</span>
+              <div class="bar"><span style="width: 63.2%;"></span></div>
+              <b>51.4</b>
+            </div>
+            <p class="caption">Best text pipeline here is Unstructured + captioning + BGE-M3. SigLIP represents a strong single-vector contrastive VLM baseline.</p>
+          </div>
+          <div class="panel soft-teal">
+            <h3>Component ladder</h3>
+            <table class="table-lite">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Change</th>
+                  <th>Avg.</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>SigLIP</td>
+                  <td>Vanilla vision-language bi-encoder</td>
+                  <td>51.4</td>
+                </tr>
+                <tr>
+                  <td>BiSigLIP</td>
+                  <td>Fine-tuned for document retrieval</td>
+                  <td>58.6</td>
+                </tr>
+                <tr>
+                  <td>BiPali</td>
+                  <td>Add language model contextualization</td>
+                  <td>58.8</td>
+                </tr>
+                <tr>
+                  <td><strong>ColPali</strong></td>
+                  <td><strong>Use late interaction over patch vectors</strong></td>
+                  <td class="score">81.3</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="figure-wrap">
+          <img class="paper-figure" src="assets/paper-table2-vidore-results.png" alt="Table 2 from the ColPali paper showing nDCG@5 results across ViDoRe tasks.">
+          <p class="caption"><span class="source">From the paper, Table 2.</span> ColPali is strongest across visually heavy tasks such as ArxivQA, InfoVQA, and TabFQuAD, and also improves text-centric practical tasks.</p>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-10" data-slide="10">
+        <p class="kicker">Why it works</p>
+        <h2 class="slide-title tight">Multi-vector pages let different query terms bind to different visual evidence.</h2>
+        <div class="grid two">
+          <img class="generated-figure" src="assets/generated-late-interaction.png" alt="Generated illustration showing query beads matching different document page regions.">
+          <div class="panel">
+            <h3>One score, many local matches</h3>
+            <ul class="bullets">
+              <li>A query about an <strong>hour</strong> can match an axis label and chart region.</li>
+              <li>A query about an <strong>entity</strong> can match repeated mentions in text.</li>
+              <li>A query about a <strong>table field</strong> can match a cell or row header directly.</li>
+              <li>The final page score sums these local best matches.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="compare" style="margin-top: 24px;">
+          <div class="panel soft-coral">
+            <h3><span class="dot coral"></span>Single-vector page</h3>
+            <p>Compresses every page detail into one vector. Fine for global semantics, fragile for dense pages with small but decisive visual facts.</p>
+          </div>
+          <div class="panel soft-teal">
+            <h3><span class="dot"></span>Multi-vector page</h3>
+            <p>Keeps patch-level evidence alive. The query can collect evidence from several page regions without re-encoding the document.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-11" data-slide="11">
+        <p class="kicker">Visual evidence</p>
+        <h2 class="slide-title tight">The benchmark examples show why OCR text alone is a weak abstraction.</h2>
+        <div class="grid two-even">
+          <div>
+            <img class="paper-figure" src="assets/paper-fig4-energy-example.png" alt="Energy chart example from the ColPali paper.">
+            <p class="caption"><span class="source">From the paper, Figure 4.</span> A stacked chart encodes time, fuel type, color, and relative contribution. Text extraction alone would flatten much of that structure.</p>
+          </div>
+          <div>
+            <img class="paper-figure" src="assets/paper-fig5-government-example.png" alt="Government report table example from the ColPali paper.">
+            <p class="caption"><span class="source">From the paper, Figure 5.</span> The retrieval target may be a specific table row or column relationship, not just a paragraph.</p>
+          </div>
+        </div>
+        <p class="quote">ColPali does not need a separate choice about whether a figure is "noise", "text", "table", or "captionable". It embeds the page as the user sees it.</p>
+      </section>
+
+      <section class="slide" id="slide-12" data-slide="12">
+        <p class="kicker">Latency</p>
+        <h2 class="slide-title tight">The speed win is mostly offline: ColPali skips the expensive parser stack.</h2>
+        <div class="grid two">
+          <div>
+            <img class="paper-figure" src="assets/paper-fig2-indexing-latency.png" alt="Figure 2 from the ColPali paper showing indexing latency per page.">
+            <p class="caption"><span class="source">From the paper, Figure 2.</span> Per-page indexing latency: PDF parser pipeline 7.22s, SigLIP 0.12s, ColPali 0.39s.</p>
+          </div>
+          <div class="panel">
+            <h3>Interpretation</h3>
+            <ul class="bullets">
+              <li><strong>PDF parser stack:</strong> layout detection, OCR, captioning, and page/chunk encoding.</li>
+              <li><strong>ColPali:</strong> one page-image forward pass into a multi-vector index.</li>
+              <li><strong>Online query:</strong> about 30ms to encode a query, with late-interaction overhead around 1ms per 1,000 pages in the paper's setup.</li>
+              <li><strong>Scaling path:</strong> optimized late-interaction systems can support much larger corpora.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="grid three">
+          <div class="stat">
+            <span class="number">18.5x</span>
+            <span class="label">Faster indexing than the parser pipeline</span>
+            <span class="note">7.22s / 0.39s per page.</span>
+          </div>
+          <div class="stat">
+            <span class="number">0.12s</span>
+            <span class="label">SigLIP page encoding</span>
+            <span class="note">Fast, but much lower retrieval quality.</span>
+          </div>
+          <div class="stat">
+            <span class="number">22ms</span>
+            <span class="label">BGE-M3 query encoding baseline</span>
+            <span class="note">ColPali query encoding is about 30ms.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-13" data-slide="13">
+        <p class="kicker">Storage</p>
+        <h2 class="slide-title tight">The tradeoff: multi-vector retrieval stores much more per page, then recovers with pooling and compression.</h2>
+        <div class="grid two">
+          <div class="panel soft-amber">
+            <h3>Embedding footprint reported by the paper</h3>
+            <table class="table-lite">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Embedding size per page</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>BGE-M3</td>
+                  <td>8.60 KB</td>
+                </tr>
+                <tr>
+                  <td>BM25 dense</td>
+                  <td>3.00 KB</td>
+                </tr>
+                <tr>
+                  <td>BM25 sparse</td>
+                  <td>1.56 +/- 0.51 KB</td>
+                </tr>
+                <tr>
+                  <td><strong>ColPali float16</strong></td>
+                  <td><strong>257.5 KB</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="panel">
+            <h3>Why this is not the end of the story</h3>
+            <ul class="bullets">
+              <li>Many page patches are redundant, especially whitespace and repeated layout regions.</li>
+              <li>Token pooling reduces the number of stored vectors while keeping most retrieval quality.</li>
+              <li>ColBERT-style systems also support clustering, quantization, and specialized indexes.</li>
+              <li>The right production design depends on corpus size, update pattern, and latency budget.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="figure-wrap">
+          <img class="paper-figure" src="assets/paper-fig3-pooling-interpretability.png" alt="Figure 3 from the ColPali paper showing token pooling and interpretability heatmap.">
+          <p class="caption"><span class="source">From the paper, Figure 3.</span> With pool factor 3, the number of stored vectors falls by 66.7% while retaining 97.8% of original performance on average.</p>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-14" data-slide="14">
+        <p class="kicker">Interpretability</p>
+        <h2 class="slide-title tight">Late interaction produces useful heatmaps: which page patches answered which query term?</h2>
+        <div class="grid two">
+          <div>
+            <img class="paper-figure" src="assets/paper-fig6-kazakhstan-map.png" alt="Figure 6 from the ColPali paper showing query-token similarity over a French page about Kazakhstan.">
+            <p class="caption"><span class="source">From the paper, Figure 6.</span> For the query token about Kazakhstan, highlighted regions include exact text mentions and related context such as Kashagan.</p>
+          </div>
+          <div class="panel soft-teal">
+            <h3>Why interpretability matters here</h3>
+            <ul class="bullets">
+              <li>Retrieval failures can be debugged at patch level rather than only with a scalar score.</li>
+              <li>Heatmaps reveal OCR-like behavior: the model often aligns query words to text regions in the image.</li>
+              <li>They also reveal non-text visual grounding, such as chart axes or salient diagram regions.</li>
+              <li>The paper notes some white patches may behave like register tokens, storing global information.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-15" data-slide="15">
+        <p class="kicker">Ablations</p>
+        <h2 class="slide-title tight">The ablations say the performance is not just "use any VLM". The details matter.</h2>
+        <div class="grid two-even">
+          <div class="panel">
+            <h3>What helped</h3>
+            <ul class="bullets">
+              <li><strong>Late interaction:</strong> BiPali averages 58.8 nDCG@5; ColPali reaches 81.3.</li>
+              <li><strong>More visual tokens:</strong> lowering image resolution sharply hurts performance.</li>
+              <li><strong>Better VLM backbones:</strong> ColQwen2-VL reaches 86.6 in the reported ablation.</li>
+              <li><strong>Task adaptation:</strong> adding French table samples improves TabFQuAD without hurting the rest.</li>
+            </ul>
+          </div>
+          <div class="panel soft-coral">
+            <h3>What did not simply transfer</h3>
+            <ul class="bullets">
+              <li><strong>ColSigLIP fails:</strong> late interaction over SigLIP-style patches performs poorly.</li>
+              <li><strong>Training the vision encoder</strong> gave a small degradation in the reported setting.</li>
+              <li><strong>Removing query augmentation</strong> does not collapse English performance, but changes French results.</li>
+              <li><strong>Fewer patches</strong> reduce memory but lose the local evidence that makes the method strong.</li>
+            </ul>
+          </div>
+        </div>
+        <table class="table-lite" style="margin-top: 24px;">
+          <thead>
+            <tr>
+              <th>Variant</th>
+              <th>Average nDCG@5</th>
+              <th>Reading</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>ColPali reference</td>
+              <td class="score">81.3</td>
+              <td>Strong balance of patch count, VLM language grounding, and late interaction.</td>
+            </tr>
+            <tr>
+              <td>ColPali lower resolution</td>
+              <td>56.5</td>
+              <td>Memory savings can be expensive when visual evidence gets undersampled.</td>
+            </tr>
+            <tr>
+              <td>ColIdefics2</td>
+              <td>76.6</td>
+              <td>Stronger language model, fewer post-resampling patches, slower than ColPali.</td>
+            </tr>
+            <tr>
+              <td>ColQwen2-VL</td>
+              <td>86.6</td>
+              <td>Better generative VLMs appear to transfer into better visual retrievers.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="slide" id="slide-16" data-slide="16">
+        <p class="kicker">System design</p>
+        <h2 class="slide-title tight">In a RAG system, ColPali changes the ingestion contract.</h2>
+        <div class="grid two">
+          <svg class="rag-viz" viewBox="0 0 720 420" role="img" aria-label="Visual RAG architecture using ColPali retrieval.">
+            <defs>
+              <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0l10 5-10 5Z" fill="#60707f"></path>
+              </marker>
+            </defs>
+            <rect x="26" y="24" width="668" height="372" rx="8" fill="#fff" stroke="#d7e0e6"></rect>
+            <rect x="58" y="74" width="142" height="86" rx="8" fill="#e8f0fb" stroke="#c8d7ec"></rect>
+            <text x="129" y="110" text-anchor="middle" font-size="17" font-weight="800">PDF pages</text>
+            <text x="129" y="136" text-anchor="middle" font-size="13" fill="#60707f">rendered images</text>
+            <path d="M212 117h86" stroke="#60707f" stroke-width="2.5" marker-end="url(#arrow2)"></path>
+            <rect x="316" y="74" width="142" height="86" rx="8" fill="#e4f5f4" stroke="#b9dedc"></rect>
+            <text x="387" y="110" text-anchor="middle" font-size="17" font-weight="800">ColPali</text>
+            <text x="387" y="136" text-anchor="middle" font-size="13" fill="#60707f">multi-vectors</text>
+            <path d="M470 117h86" stroke="#60707f" stroke-width="2.5" marker-end="url(#arrow2)"></path>
+            <rect x="574" y="74" width="86" height="86" rx="8" fill="#fff2df" stroke="#ead2ad"></rect>
+            <text x="617" y="110" text-anchor="middle" font-size="16" font-weight="800">Index</text>
+            <text x="617" y="136" text-anchor="middle" font-size="13" fill="#60707f">patches</text>
+            <rect x="58" y="252" width="142" height="86" rx="8" fill="#ffede9" stroke="#efc3bc"></rect>
+            <text x="129" y="286" text-anchor="middle" font-size="17" font-weight="800">User query</text>
+            <text x="129" y="312" text-anchor="middle" font-size="13" fill="#60707f">tokens</text>
+            <path d="M212 295h112" stroke="#60707f" stroke-width="2.5" marker-end="url(#arrow2)"></path>
+            <rect x="342" y="252" width="142" height="86" rx="8" fill="#edf3f5" stroke="#cfd9df"></rect>
+            <text x="413" y="286" text-anchor="middle" font-size="17" font-weight="800">MaxSim</text>
+            <text x="413" y="312" text-anchor="middle" font-size="13" fill="#60707f">rank pages</text>
+            <path d="M486 274c74-40 114-70 130-108" stroke="#60707f" stroke-width="2.5" fill="none" marker-end="url(#arrow2)"></path>
+            <path d="M486 305h68" stroke="#60707f" stroke-width="2.5" marker-end="url(#arrow2)"></path>
+            <rect x="572" y="252" width="88" height="86" rx="8" fill="#e9f7ef" stroke="#b7dbc7"></rect>
+            <text x="616" y="286" text-anchor="middle" font-size="16" font-weight="800">Top pages</text>
+            <text x="616" y="312" text-anchor="middle" font-size="13" fill="#60707f">for VLM</text>
+          </svg>
+          <div class="panel">
+            <h3>Practical impact</h3>
+            <ul class="bullets">
+              <li>The ingestion pipeline can be standardized around rendering pages and embedding images.</li>
+              <li>Domain-specific fine-tuning becomes direct: train on query-page pairs instead of rebuilding parsers.</li>
+              <li>Visual retrievers pair naturally with visual answerers that consume the retrieved page images.</li>
+              <li>The index can retain page screenshots, patch vectors, and optional extracted text as metadata.</li>
+            </ul>
+          </div>
+        </div>
+        <p class="quote">The paper's long-term direction is end-to-end RAG that works from image features: retrieve visually, then answer visually.</p>
+      </section>
+
+      <section class="slide" id="slide-17" data-slide="17">
+        <p class="kicker">Limitations</p>
+        <h2 class="slide-title tight">ColPali is a strong direction, but not a free lunch.</h2>
+        <div class="grid three">
+          <div class="mini-card panel soft-amber">
+            <h3>Storage pressure</h3>
+            <p>257.5 KB per page in float16 is large for millions of pages. Pooling, quantization, and specialized indexes become system requirements.</p>
+          </div>
+          <div class="mini-card panel soft-blue">
+            <h3>Retrieval is not answering</h3>
+            <p>A retrieved page still needs a reader or VLM answerer. The quality of the final RAG response depends on both stages.</p>
+          </div>
+          <div class="mini-card panel soft-coral">
+            <h3>Benchmark scope</h3>
+            <p>ViDoRe is page-level retrieval with bounded corpora. Production systems may need multi-page reasoning, freshness, permissions, and citation control.</p>
+          </div>
+        </div>
+        <div class="grid two-even">
+          <div class="panel">
+            <h3>Open engineering questions</h3>
+            <ul class="bullets">
+              <li>How aggressively can vectors be compressed before rare visual facts disappear?</li>
+              <li>How should visual indexes handle document updates, deletion, and access control?</li>
+              <li>What reranking strategy best combines page images, extracted text, and metadata?</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <h3>Open research questions</h3>
+            <ul class="bullets">
+              <li>Can confidence estimation support abstention in visual retrieval?</li>
+              <li>How far does zero-shot multilingual retrieval extend?</li>
+              <li>Will stronger VLMs continue to translate into stronger visual retrievers?</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" id="slide-18" data-slide="18">
+        <p class="kicker">Takeaways</p>
+        <h2 class="slide-title tight">ColPali reframes document retrieval as page-image matching, not text cleanup.</h2>
+        <div class="grid four">
+          <div class="stat">
+            <span class="number">1</span>
+            <span class="label">Benchmark the real problem</span>
+            <span class="note">ViDoRe tests page retrieval over visual, multilingual, and practical documents.</span>
+          </div>
+          <div class="stat">
+            <span class="number">2</span>
+            <span class="label">Embed pages directly</span>
+            <span class="note">Rendered pages keep layout and visual evidence intact.</span>
+          </div>
+          <div class="stat">
+            <span class="number">3</span>
+            <span class="label">Keep many vectors</span>
+            <span class="note">Late interaction lets each query term find its best page patch.</span>
+          </div>
+          <div class="stat">
+            <span class="number">4</span>
+            <span class="label">Engineer the index</span>
+            <span class="note">Pooling and compression are central for large-scale deployment.</span>
+          </div>
+        </div>
+        <p class="quote">A compact one-sentence version: ColPali turns each document page into a searchable set of vision-language patch vectors, then ranks pages by summing each query token's strongest visual match.</p>
+        <div class="tag-row">
+          <span class="tag teal">81.3 nDCG@5</span>
+          <span class="tag amber">0.39s/page indexing</span>
+          <span class="tag coral">257.5 KB/page float16</span>
+          <span class="tag teal">PaliGemma + ColBERT</span>
+        </div>
+        <p class="footnote">Paper: Manuel Faysse, Hugues Sibille, Tony Wu, Bilel Omrani, Gautier Viaud, Celine Hudelot, Pierre Colombo. "ColPali: Efficient Document Retrieval with Vision Language Models." ICLR 2025.</p>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const progressBar = document.getElementById("progressBar");
+    const counter = document.getElementById("counter");
+    const prevButton = document.getElementById("prevSlide");
+    const nextButton = document.getElementById("nextSlide");
+
+    let currentIndex = 0;
+
+    function nearestSlideIndex() {
+      const viewportMid = window.scrollY + window.innerHeight * 0.38;
+      let nearest = 0;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+
+      slides.forEach((slide, index) => {
+        const distance = Math.abs(slide.offsetTop - viewportMid);
+        if (distance < nearestDistance) {
+          nearest = index;
+          nearestDistance = distance;
+        }
+      });
+
+      return nearest;
+    }
+
+    function setCurrent(index) {
+      currentIndex = Math.max(0, Math.min(slides.length - 1, index));
+      const progress = ((currentIndex + 1) / slides.length) * 100;
+      progressBar.style.width = `${progress}%`;
+      counter.textContent = `${currentIndex + 1} / ${slides.length}`;
+      prevButton.disabled = currentIndex === 0;
+      nextButton.disabled = currentIndex === slides.length - 1;
+    }
+
+    function goToSlide(index) {
+      const next = Math.max(0, Math.min(slides.length - 1, index));
+      slides[next].scrollIntoView({ behavior: "smooth", block: "start" });
+      history.replaceState(null, "", `#slide-${next + 1}`);
+      setCurrent(next);
+    }
+
+    prevButton.addEventListener("click", () => goToSlide(currentIndex - 1));
+    nextButton.addEventListener("click", () => goToSlide(currentIndex + 1));
+
+    window.addEventListener("keydown", (event) => {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
+        event.preventDefault();
+        goToSlide(currentIndex + 1);
+      }
+      if (event.key === "ArrowLeft" || event.key === "PageUp" || event.key === "Backspace") {
+        event.preventDefault();
+        goToSlide(currentIndex - 1);
+      }
+      if (event.key === "Home") {
+        event.preventDefault();
+        goToSlide(0);
+      }
+      if (event.key === "End") {
+        event.preventDefault();
+        goToSlide(slides.length - 1);
+      }
+    });
+
+    let scrollTimer;
+    window.addEventListener("scroll", () => {
+      window.clearTimeout(scrollTimer);
+      scrollTimer = window.setTimeout(() => setCurrent(nearestSlideIndex()), 40);
+    }, { passive: true });
+
+    const initialHash = window.location.hash.match(/slide-(\d+)/);
+    if (initialHash) {
+      setCurrent(Number(initialHash[1]) - 1);
+    } else {
+      setCurrent(0);
+    }
+  </script>
+</body>
+</html>
